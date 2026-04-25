@@ -35,6 +35,7 @@ from ..instance_bank import topk
 from nuscenes.nuscenes import NuScenes
 from ....configs.sparsedrive_small_stage2_roboAD import batch_size
 from .next_token_prediction import NextTokenPredictor
+from .adaptive_history_selector import AdaptiveHistorySelector
 @HEADS.register_module()
 class MotionPlanningHeadroboAD(BaseModule):
     def __init__(
@@ -83,6 +84,13 @@ class MotionPlanningHeadroboAD(BaseModule):
         self.last_final_planning_prediction=torch.zeros([batch_size, 6, 2])
         self.last_plan_query = torch.zeros([batch_size, 1, 18, 256])
         self.last_ego_cmd = torch.zeros([batch_size, 3])
+        # Adaptive history: t-2 cache + ego_status cache + per-batch validity flags
+        self.last2_planning_classification = torch.zeros([batch_size, 1, 18])
+        self.last2_planning_prediction = torch.zeros([batch_size, 1, 18, 6, 2])
+        self.last2_plan_query = torch.zeros([batch_size, 1, 18, 256])
+        self.last_ego_status = torch.zeros([batch_size, 10])
+        self.last_valid = False
+        self.last2_valid = False
         self.nusc = NuScenes(version='v1.0-trainval', dataroot="data/nuscenes/", verbose=True)
         self.use_rescore = use_rescore
         # =========== build modules ===========
@@ -156,6 +164,12 @@ class MotionPlanningHeadroboAD(BaseModule):
         self.num_map = num_map
         #self.sa_atten_layer = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1, stride=1, padding=0)
         self.refine_2th_layer = MotionPlanning2thRefinementModule(embed_dims=256, ego_fut_ts=6, ego_fut_mode=6)
+        # Persistent temporal mixer (was instantiated inside forward(), so its weights were untrained).
+        self.long_horizon_query_mixer = NextTokenPredictor(embed_dims, embed_dims // 2)
+        # 3-way soft gate over {no-history, t-1, t-1+t-2}.
+        self.adaptive_history_selector = AdaptiveHistorySelector(
+            ego_status_dim=10, embed_dims=embed_dims, hidden_dim=64
+        )
 
 
     def init_weights(self):
@@ -549,19 +563,30 @@ class MotionPlanningHeadroboAD(BaseModule):
         # if plan_query.device==torch.device(type='cuda', index=1):
         #     print(self.nusc.get('sample', sample0_token),self.nusc.get('sample', sample0_token)["next"],plan_query.device)
         if prev_sample_token == "":
-            
+
             device = plan_query.device
             self.last_planning_classification=torch.zeros([batch_size, 1, 18]).detach()
             self.last_planning_prediction=torch.zeros([batch_size, 1, 18, 6, 2]).detach()
             self.last_plan_query = torch.zeros([batch_size, 1, 18, 256]).detach()
             self.last_final_planning_prediction  = torch.zeros([batch_size, 6, 2]).detach()
             self.last_ego_cmd = torch.zeros([batch_size, 3]).detach()
+            # Adaptive history: zero t-2 cache + ego_status cache, clear validity
+            self.last2_planning_classification = torch.zeros([batch_size, 1, 18]).detach()
+            self.last2_planning_prediction = torch.zeros([batch_size, 1, 18, 6, 2]).detach()
+            self.last2_plan_query = torch.zeros([batch_size, 1, 18, 256]).detach()
+            self.last_ego_status = torch.zeros([batch_size, 10]).detach()
+            self.last_valid = False
+            self.last2_valid = False
         device = plan_query.device
         self.last_planning_classification=self.last_planning_classification.to(device).detach()
         self.last_planning_prediction=self.last_planning_prediction.to(device).detach()
         self.last_plan_query = self.last_plan_query.to(device).detach()
         self.last_final_planning_prediction  = self.last_final_planning_prediction.to(device).detach()
         self.last_ego_cmd = self.last_ego_cmd.to(device).detach()
+        self.last2_planning_classification = self.last2_planning_classification.to(device).detach()
+        self.last2_planning_prediction = self.last2_planning_prediction.to(device).detach()
+        self.last2_plan_query = self.last2_plan_query.to(device).detach()
+        self.last_ego_status = self.last_ego_status.to(device).detach()
         # # # fusion
         # device = plan_query.device
         # self.last_planning_classification=torch.zeros([batch_size, 1, 18]).to(device).detach()
@@ -589,11 +614,33 @@ class MotionPlanningHeadroboAD(BaseModule):
         ego_mask_idx = np.where(ego_mask.cpu().tolist())[0].tolist()
         last_query_mask[ego_mask_idx,:,:,:] = 0
         # import pdb; pdb.set_trace()
-        if self.last_plan_query.sum()>0:
-            nxttokenpredictor = NextTokenPredictor(256, 128)
-            # import pdb; pdb.set_trace()
-            # print(self.last_plan_query.shape,self.last_planning_classification.shape, enhanced_plan_query.shape )
-            enhanced_plan_query=nxttokenpredictor(self.last_plan_query,self.last_planning_classification, enhanced_plan_query )
+        # === 3-branch soft-gated fusion (replaces in-forward NextTokenPredictor) ===
+        mixer = self.long_horizon_query_mixer
+        branch0 = enhanced_plan_query
+        if self.last_valid:
+            branch1 = mixer(self.last_plan_query, self.last_planning_classification, enhanced_plan_query)
+        else:
+            branch1 = enhanced_plan_query
+        if self.last_valid and self.last2_valid:
+            branch2 = mixer(self.last2_plan_query, self.last2_planning_classification, branch1)
+        else:
+            branch2 = enhanced_plan_query
+
+        weights = self.adaptive_history_selector(
+            metas['ego_status'], self.last_ego_status, enhanced_plan_query
+        )
+        validity = weights.new_ones(weights.shape)
+        if not self.last_valid:
+            validity[:, 1] = 0
+            validity[:, 2] = 0
+        elif not self.last2_valid:
+            validity[:, 2] = 0
+        weights = weights * validity
+        weights = weights / weights.sum(dim=-1, keepdim=True).clamp_min(1e-6)
+
+        w = weights.view(-1, 3, 1, 1, 1)
+        enhanced_plan_query = w[:, 0] * branch0 + w[:, 1] * branch1 + w[:, 2] * branch2
+        # === TTM additive mode-swap (unchanged) ===
         enhanced_plan_query = enhanced_plan_query + self.last_plan_query * last_query_mask.to(enhanced_plan_query.device)
           
         # refine 模块添加
@@ -606,6 +653,11 @@ class MotionPlanningHeadroboAD(BaseModule):
 
         # 将当前帧的结果存到cache, 并进行detach
         last_final_planning_prediction =self.select_last_final_planning_prediction(planning_classification,planning_prediction,metas).detach()
+        # Adaptive history: shift t-1 -> t-2 BEFORE overwriting last_*
+        self.last2_planning_classification = self.last_planning_classification.detach()
+        self.last2_planning_prediction = self.last_planning_prediction.detach()
+        self.last2_plan_query = self.last_plan_query.detach()
+        self.last2_valid = self.last_valid
         self.last_planning_classification = torch.tensor(planning_classification[0]).detach()
         self.last_planning_prediction = torch.tensor(planning_prediction[0]).detach()
         self.last_plan_query = torch.tensor(plan_query).detach()
@@ -615,6 +667,8 @@ class MotionPlanningHeadroboAD(BaseModule):
         else:
             self.last_final_planning_prediction = torch.tensor(last_final_planning_prediction).detach()
         self.last_ego_cmd = metas['gt_ego_fut_cmd'].detach()
+        self.last_ego_status = metas['ego_status'].detach()
+        self.last_valid = True
         
         
         planning_output = {
