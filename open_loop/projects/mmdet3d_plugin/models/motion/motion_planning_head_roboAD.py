@@ -6,7 +6,6 @@ import numpy as np
 import cv2
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from mmcv.utils import build_from_cfg
 from mmcv.cnn import Linear, bias_init_with_prob
@@ -36,47 +35,6 @@ from ..instance_bank import topk
 from nuscenes.nuscenes import NuScenes
 from ....configs.sparsedrive_small_stage2_roboAD import batch_size
 from .next_token_prediction import NextTokenPredictor
-class AdaptiveHistoryGate(nn.Module):
-    """Lightweight gate that predicts how many temporal history frames
-    to expose to temp_gnn, based on current ego dynamics.
-
-    Inputs: ego_status[3:6] (angular velocity) + ego_status[9] (steering) = 4 dims
-    Outputs: logits over {0, 1, 2} history depth
-    """
-
-    def __init__(self, hidden_dim=32):
-        super().__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(4, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 3),  # 3 classes: h_t in {0, 1, 2}
-        )
-
-    def forward(self, ego_status, tau=1.0):
-        """
-        Args:
-            ego_status: [bs, 10] full ego status tensor
-            tau: Gumbel-softmax temperature (lower = harder)
-        Returns:
-            h_t: [bs] selected history depth (0, 1, or 2)
-            gate_weights: [bs, 3] soft weights (for gradient flow)
-        """
-        gate_input = torch.cat([
-            ego_status[:, 3:6],   # angular velocity (roll, pitch, yaw rate)
-            ego_status[:, 9:10],  # steering angle
-        ], dim=-1)  # [bs, 4]
-
-        logits = self.mlp(gate_input)  # [bs, 3]
-
-        if self.training:
-            gate_weights = F.gumbel_softmax(logits, tau=tau, hard=True)
-        else:
-            gate_weights = F.one_hot(logits.argmax(dim=-1), num_classes=3).float()
-
-        h_t = gate_weights.argmax(dim=-1)  # [bs] values in {0, 1, 2}
-        return h_t, gate_weights
-
-
 @HEADS.register_module()
 class MotionPlanningHeadroboAD(BaseModule):
     def __init__(
@@ -198,9 +156,6 @@ class MotionPlanningHeadroboAD(BaseModule):
         self.num_map = num_map
         #self.sa_atten_layer = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1, stride=1, padding=0)
         self.refine_2th_layer = MotionPlanning2thRefinementModule(embed_dims=256, ego_fut_ts=6, ego_fut_mode=6)
-
-        # Adaptive history gate
-        self.history_gate = AdaptiveHistoryGate(hidden_dim=32)
 
 
     def init_weights(self):
@@ -470,27 +425,6 @@ class MotionPlanningHeadroboAD(BaseModule):
         )
         ego_anchor_embed = anchor_encoder(ego_anchor)#torch.Size([6, 1, 256])
         temp_anchor_embed = anchor_encoder(temp_anchor)#torch.Size([6, 901, 1, 256])
-
-        # =========== adaptive history gate ===========
-        # temp_mask shape before flatten: [bs, num_agent, queue_length]
-        # temp_mask[i,j,k] = True means slot k is masked (not attended to)
-        # Slots are ordered oldest-first: slot 0 = oldest, slot -1 = newest
-        # h_t ∈ {0,1,2}: number of PAST frames to keep visible
-        # h_t=0 → mask all but newest (current frame in queue)
-        # h_t=1 → mask all but newest 2
-        # h_t=2 → mask all but newest 3
-        ego_status = metas['ego_status']  # [bs, 10]
-        h_t, gate_weights = self.history_gate(ego_status)  # h_t: [bs], gate_weights: [bs, 3]
-
-        queue_len = temp_mask.shape[2]
-        # slot_age[k] = how many slots from the end (0 = newest, queue_len-1 = oldest)
-        slot_age = torch.arange(queue_len - 1, -1, -1, device=temp_mask.device)  # [queue_len]
-        # allowed slots: slot_age <= h_t (so newest h_t+1 entries are visible)
-        # gate_mask[i,k] = True if slot k should be MASKED (hidden)
-        gate_mask = slot_age[None, None, :] > h_t[:, None, None]  # [bs, 1, queue_len]
-        gate_mask = gate_mask.expand_as(temp_mask)  # [bs, num_agent, queue_len]
-        temp_mask = temp_mask | gate_mask  # combine with existing validity mask
-
         temp_instance_feature = temp_instance_feature.flatten(0, 1)#torch.Size([5406, 1, 256])
         temp_anchor_embed = temp_anchor_embed.flatten(0, 1)#torch.Size([6, 901, 1, 256])
         temp_mask = temp_mask.flatten(0, 1)#torch.Size([6, 901, 1])
