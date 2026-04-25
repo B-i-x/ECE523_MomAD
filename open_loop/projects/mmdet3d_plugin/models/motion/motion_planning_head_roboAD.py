@@ -626,8 +626,14 @@ class MotionPlanningHeadroboAD(BaseModule):
         else:
             branch2 = enhanced_plan_query
 
+        # `batch_size` imported at module level may not match runtime batch
+        # (sibling-config import resolves to 1 on this branch); existing buffers
+        # survive this via broadcasting, but torch.cat does not broadcast.
+        ego_status = metas['ego_status']
+        if self.last_ego_status.shape[0] != ego_status.shape[0]:
+            self.last_ego_status = torch.zeros_like(ego_status).detach()
         weights = self.adaptive_history_selector(
-            metas['ego_status'], self.last_ego_status, enhanced_plan_query
+            ego_status, self.last_ego_status, enhanced_plan_query
         )
         validity = weights.new_ones(weights.shape)
         if not self.last_valid:
