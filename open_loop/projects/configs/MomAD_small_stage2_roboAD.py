@@ -509,6 +509,7 @@ model = dict(
             ),
             num_det=50,
             num_map=10,
+            selector_entropy_weight=0.05,
         ),
     ),
 )
