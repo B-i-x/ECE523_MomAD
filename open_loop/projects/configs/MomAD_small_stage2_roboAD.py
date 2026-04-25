@@ -13,8 +13,9 @@ total_batch_size = 48
 num_gpus = 8
 batch_size = total_batch_size // num_gpus
 num_iters_per_epoch = int(length[version] // (num_gpus * batch_size))
-num_epochs = 20
-checkpoint_epoch_interval = 20
+# Fine-tune from pretrained MomAD checkpoint with the adaptive history selector.
+num_epochs = 3
+checkpoint_epoch_interval = 1
 
 checkpoint_config = dict(
     interval=num_iters_per_epoch * checkpoint_epoch_interval
@@ -690,7 +691,7 @@ data = dict(
 # ================== training ========================
 optimizer = dict(
     type="AdamW",
-    lr=3e-4,
+    lr=2e-5,
     weight_decay=0.001,
     paramwise_cfg=dict(
         custom_keys={
@@ -727,4 +728,5 @@ evaluation = dict(
 )
 # ================== pretrained model ========================
 load_from = 'ckpt/MomAD_3s.pth'
+# load_from = 'ckpt/sparsedrive_stage2.pth'
 # load_from = 'ckpt/sparsedrive_stage1.pth'
