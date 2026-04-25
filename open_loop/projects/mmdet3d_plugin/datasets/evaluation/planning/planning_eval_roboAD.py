@@ -18,14 +18,30 @@ def check_collision(ego_box, boxes):
     if  boxes.shape[0] == 0:
         return False
 
+    # NaN-guard: a degenerate ego trajectory (NaN/inf) cannot meaningfully
+    # collide with anything; treat as no-collision. This shows up when
+    # the planner is run with mismatched anchors or pre-converged weights.
+    if not torch.isfinite(ego_box).all():
+        return False
+
     # follow uniad, add a 0.5m offset
     ego_box[0] += 0.5 * torch.cos(ego_box[6])
     ego_box[1] += 0.5 * torch.sin(ego_box[6])
     ego_corners_box = box3d_to_corners(ego_box.unsqueeze(0))[0, [0, 3, 7, 4], :2]
     corners_box = box3d_to_corners(boxes)[:, [0, 3, 7, 4], :2]
-    ego_poly = Polygon([(point[0], point[1]) for point in ego_corners_box])
+    try:
+        ego_poly = Polygon([(point[0], point[1]) for point in ego_corners_box])
+        if not ego_poly.is_valid or ego_poly.area == 0:
+            return False
+    except (ValueError, Exception):
+        return False
     for i in range(len(corners_box)):
-        box_poly =  Polygon([(point[0], point[1]) for point in corners_box[i]])
+        try:
+            box_poly = Polygon([(point[0], point[1]) for point in corners_box[i]])
+            if not box_poly.is_valid or box_poly.area == 0:
+                continue
+        except (ValueError, Exception):
+            continue
         collision = ego_poly.intersects(box_poly)
         if collision:
             return True

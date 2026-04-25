@@ -1,0 +1,57 @@
+running develop
+running egg_info
+creating deformable_aggregation_ext.egg-info
+writing deformable_aggregation_ext.egg-info/PKG-INFO
+writing dependency_links to deformable_aggregation_ext.egg-info/dependency_links.txt
+writing top-level names to deformable_aggregation_ext.egg-info/top_level.txt
+writing manifest file 'deformable_aggregation_ext.egg-info/SOURCES.txt'
+reading manifest file 'deformable_aggregation_ext.egg-info/SOURCES.txt'
+writing manifest file 'deformable_aggregation_ext.egg-info/SOURCES.txt'
+running build_ext
+building '..deformable_aggregation_ext' extension
+creating /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/build/temp.linux-x86_64-cpython-38/src
+/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/setuptools/command/develop.py:41: EasyInstallDeprecationWarning: easy_install command is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` and ``easy_install``.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://github.com/pypa/setuptools/issues/917 for details.
+        ********************************************************************************
+
+!!
+  easy_install.initialize_options(self)
+/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/utils/cpp_extension.py:387: UserWarning: The detected CUDA version (11.8) has a minor version mismatch with the version that was used to compile PyTorch (11.7). Most likely this shouldn't be a problem.
+  warnings.warn(CUDA_MISMATCH_WARN.format(cuda_str_version, torch.version.cuda))
+/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/utils/cpp_extension.py:397: UserWarning: There are no g++ version bounds defined for CUDA version 11.8
+  warnings.warn(f'There are no {compiler_name} version bounds defined for CUDA version {cuda_str_version}')
+Emitting ninja build file /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/build/temp.linux-x86_64-cpython-38/build.ninja...
+Compiling objects...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+[1/2] /opt/ohpc/pub/apps/cuda/11.8/bin/nvcc  -DWITH_CUDA -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include/torch/csrc/api/include -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include/TH -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include/THC -I/opt/ohpc/pub/apps/cuda/11.8/include -I/home/u20/aromerolozano/.conda/envs/MomAD_env/include/python3.8 -c -c /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/src/deformable_aggregation_cuda.cu -o /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/build/temp.linux-x86_64-cpython-38/src/deformable_aggregation_cuda.o -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=deformable_aggregation_ext -D_GLIBCXX_USE_CXX11_ABI=0 -gencode=arch=compute_60,code=sm_60 -std=c++14
+[2/2] c++ -MMD -MF /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/build/temp.linux-x86_64-cpython-38/src/deformable_aggregation.o.d -pthread -B /home/u20/aromerolozano/.conda/envs/MomAD_env/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -I/opt/ohpc/pub/apps/cuda/11.8/include -I/opt/ohpc/pub/apps/anaconda/2024.06/include -fPIC -DWITH_CUDA -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include/torch/csrc/api/include -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include/TH -I/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/include/THC -I/opt/ohpc/pub/apps/cuda/11.8/include -I/home/u20/aromerolozano/.conda/envs/MomAD_env/include/python3.8 -c -c /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/src/deformable_aggregation.cpp -o /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/build/temp.linux-x86_64-cpython-38/src/deformable_aggregation.o -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=deformable_aggregation_ext -D_GLIBCXX_USE_CXX11_ABI=0 -std=c++14
+cc1plus: warning: command line option '-Wstrict-prototypes' is valid for C/ObjC but not for C++
+creating build/lib.linux-x86_64-cpython-38
+g++ -pthread -B /home/u20/aromerolozano/.conda/envs/MomAD_env/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -I/opt/ohpc/pub/apps/cuda/11.8/include -I/opt/ohpc/pub/apps/anaconda/2024.06/include -pthread -shared -B /home/u20/aromerolozano/.conda/envs/MomAD_env/compiler_compat -L/home/u20/aromerolozano/.conda/envs/MomAD_env/lib -Wl,-rpath=/home/u20/aromerolozano/.conda/envs/MomAD_env/lib -Wl,--no-as-needed -Wl,--sysroot=/ -L/opt/ohpc/pub/apps/anaconda/2024.06/lib -I/opt/ohpc/pub/apps/cuda/11.8/include -I/opt/ohpc/pub/apps/anaconda/2024.06/include /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/build/temp.linux-x86_64-cpython-38/src/deformable_aggregation.o /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops/build/temp.linux-x86_64-cpython-38/src/deformable_aggregation_cuda.o -L/home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/torch/lib -L/opt/ohpc/pub/apps/cuda/11.8/lib64 -lc10 -ltorch -ltorch_cpu -ltorch_python -lcudart -lc10_cuda -ltorch_cuda_cu -ltorch_cuda_cpp -o build/lib.linux-x86_64-cpython-38/deformable_aggregation_ext.cpython-38-x86_64-linux-gnu.so
+copying build/lib.linux-x86_64-cpython-38/deformable_aggregation_ext.cpython-38-x86_64-linux-gnu.so -> 
+Creating /home/u20/aromerolozano/.conda/envs/MomAD_env/lib/python3.8/site-packages/deformable-aggregation-ext.egg-link (link to .)
+Adding deformable-aggregation-ext 0.0.0 to easy-install.pth file
+
+Installed /home/u20/aromerolozano/ECE523_MomAD/open_loop/projects/mmdet3d_plugin/ops
+Processing dependencies for deformable-aggregation-ext==0.0.0
+Finished processing dependencies for deformable-aggregation-ext==0.0.0

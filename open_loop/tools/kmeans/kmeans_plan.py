@@ -14,7 +14,6 @@ fp = 'data/infos/nuscenes_infos_train.pkl'
 data = mmcv.load(fp)
 #data_infos = list(sorted(data["infos"], key=lambda e: e["timestamp"]))
 data_infos = list(data["infos"])
-import pdb;pdb.set_trace()
 navi_trajs = [[], [], []]
 for idx in tqdm(range(len(data_infos))):
     info = data_infos[idx]
@@ -27,13 +26,35 @@ for idx in tqdm(range(len(data_infos))):
     navi_trajs[cmd].append(plan_traj)
 
 clusters = []
-for trajs in navi_trajs:
+fallback_cluster = None
+empty_idx = []
+for i, trajs in enumerate(navi_trajs):
+    if len(trajs) == 0:
+        clusters.append(None)
+        empty_idx.append(i)
+        continue
     trajs = np.concatenate(trajs, axis=0).reshape(-1, 12)
-    cluster = KMeans(n_clusters=K).fit(trajs).cluster_centers_
+    n_clusters = min(K, len(trajs))
+    cluster = KMeans(n_clusters=n_clusters, n_init=10).fit(trajs).cluster_centers_
+    if n_clusters < K:
+        # pad by repeating last center
+        pad = np.repeat(cluster[-1:], K - n_clusters, axis=0)
+        cluster = np.concatenate([cluster, pad], axis=0)
     cluster = cluster.reshape(-1, 6, 2)
     clusters.append(cluster)
+    if fallback_cluster is None:
+        fallback_cluster = cluster
     for j in range(K):
-        plt.scatter(cluster[j, :, 0], cluster[j, :,1])
+        plt.scatter(cluster[j, :, 0], cluster[j, :, 1])
+
+if fallback_cluster is None:
+    raise RuntimeError("No planning trajectories at all — cannot build plan anchors.")
+for i in empty_idx:
+    print(f"[warn] navi bucket {i} empty in mini split; reusing fallback bucket centers.")
+    clusters[i] = fallback_cluster.copy()
+
+import os
+os.makedirs('vis/kmeans', exist_ok=True)
 plt.savefig(f'vis/kmeans/plan_{K}', bbox_inches='tight')
 plt.close()
 

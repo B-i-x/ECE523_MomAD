@@ -108,6 +108,10 @@ class FlashAttention(nn.Module):
                 attn = attn.masked_fill(causal_mask[None, None], float('-inf'))
 
             attn = attn.softmax(dim=-1)
+            # Rows where every key is masked (all -inf) produce NaN after softmax.
+            # Flash-attn's reference implementation treats those rows as zero
+            # attention; we do the same so NaN doesn't propagate downstream.
+            attn = torch.nan_to_num(attn, nan=0.0)
             if self.training and self.dropout_p > 0.0:
                 attn = torch.nn.functional.dropout(attn, p=self.dropout_p)
             output = torch.matmul(attn, v_)                         # (B, H, T, D)

@@ -1,6 +1,6 @@
 # ================ base config ===================
 # version = 'mini'
-version = 'trainval'
+version = 'mini'
 length = {'trainval': 28130, 'mini': 323}
 
 plugin = True
@@ -726,5 +726,5 @@ evaluation = dict(
     eval_mode=eval_mode,
 )
 # ================== pretrained model ========================
-load_from = 'ckpt/sparsedrive_stage2.pth'
+load_from = 'ckpt/MomAD_3s.pth'
 # load_from = 'ckpt/sparsedrive_stage1.pth'
