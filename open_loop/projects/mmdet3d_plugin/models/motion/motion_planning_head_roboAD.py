@@ -632,7 +632,7 @@ class MotionPlanningHeadroboAD(BaseModule):
         if self.last_ego_status.shape[0] != ego_status.shape[0]:
             self.last_ego_status = torch.zeros_like(ego_status).detach()
         weights = self.adaptive_history_selector(
-            ego_status, self.last_ego_status, enhanced_plan_query
+            ego_status, self.last_ego_status, enhanced_plan_query, current_ego_cmd
         )
         validity = weights.new_ones(weights.shape)
         if not self.last_valid:
