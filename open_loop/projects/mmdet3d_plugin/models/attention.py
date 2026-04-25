@@ -15,13 +15,29 @@ import torch.utils.checkpoint as cp
 
 
 from einops import rearrange
+
+# flash_attn is unavailable on Pascal (P100, sm_60). We import it if present,
+# otherwise fall back to a pure-PyTorch attention path below. The fallback is
+# numerically equivalent (just slower) and preserves all parameter names so
+# pretrained MomAD checkpoints load without remapping.
 try:
     from flash_attn.flash_attn_interface import flash_attn_unpadded_kvpacked_func
+    from flash_attn.bert_padding import unpad_input, pad_input, index_first_axis
+    _HAS_FLASH_ATTN = True
     print('Use flash_attn_unpadded_kvpacked_func')
-except:
-    from flash_attn.flash_attn_interface import  flash_attn_varlen_kvpacked_func as flash_attn_unpadded_kvpacked_func
-    print('Use flash_attn_varlen_kvpacked_func')
-from flash_attn.bert_padding import unpad_input, pad_input, index_first_axis
+except ImportError:
+    try:
+        from flash_attn.flash_attn_interface import flash_attn_varlen_kvpacked_func as flash_attn_unpadded_kvpacked_func
+        from flash_attn.bert_padding import unpad_input, pad_input, index_first_axis
+        _HAS_FLASH_ATTN = True
+        print('Use flash_attn_varlen_kvpacked_func')
+    except ImportError:
+        _HAS_FLASH_ATTN = False
+        flash_attn_unpadded_kvpacked_func = None
+        unpad_input = None
+        pad_input = None
+        index_first_axis = None
+        print('flash_attn unavailable; using PyTorch attention fallback (Pascal-compatible).')
 
 
 def _in_projection_packed(q, k, v, w, b = None):
@@ -50,14 +66,14 @@ class FlashAttention(nn.Module):
         self.fp16_enabled = True
 
     @auto_fp16(apply_to=('q', 'kv'), out_fp32=True)
-    def forward(self, q, kv, 
-                causal=False, 
+    def forward(self, q, kv,
+                causal=False,
                 key_padding_mask=None):
         """Implements the multihead softmax attention.
         Arguments
         ---------
-            q: The tensor containing the query. (B, T, H, D) 
-            kv: The tensor containing the key, and value. (B, S, 2, H, D) 
+            q: The tensor containing the query. (B, T, H, D)
+            kv: The tensor containing the key, and value. (B, S, 2, H, D)
             key_padding_mask: a bool tensor of shape (B, S)
         """
         assert q.dtype in [torch.float16, torch.bfloat16] and kv.dtype in [torch.float16, torch.bfloat16]
@@ -66,13 +82,45 @@ class FlashAttention(nn.Module):
 
         batch_size = q.shape[0]
         seqlen_q, seqlen_k = q.shape[1], kv.shape[1]
+
+        if not _HAS_FLASH_ATTN:
+            # Pure-PyTorch fallback for hardware without flash-attn (e.g. Pascal/P100).
+            # Numerically equivalent: standard scaled-dot-product attention in fp16.
+            # q: (B, T, H, D), kv: (B, S, 2, H, D)
+            B, T, H, D = q.shape
+            S = kv.shape[1]
+            k, v = kv.unbind(dim=2)                 # each (B, S, H, D)
+            q_ = q.transpose(1, 2)                  # (B, H, T, D)
+            k_ = k.transpose(1, 2)                  # (B, H, S, D)
+            v_ = v.transpose(1, 2)                  # (B, H, S, D)
+
+            scale = self.softmax_scale if self.softmax_scale is not None else (1.0 / math.sqrt(D))
+            attn = torch.matmul(q_, k_.transpose(-2, -1)) * scale  # (B, H, T, S)
+
+            if key_padding_mask is not None:
+                # key_padding_mask: (B, S) bool, True = valid
+                mask = key_padding_mask[:, None, None, :]          # (B, 1, 1, S)
+                attn = attn.masked_fill(~mask, float('-inf'))
+
+            if causal:
+                causal_mask = torch.triu(
+                    torch.ones(T, S, dtype=torch.bool, device=q.device), diagonal=1)
+                attn = attn.masked_fill(causal_mask[None, None], float('-inf'))
+
+            attn = attn.softmax(dim=-1)
+            if self.training and self.dropout_p > 0.0:
+                attn = torch.nn.functional.dropout(attn, p=self.dropout_p)
+            output = torch.matmul(attn, v_)                         # (B, H, T, D)
+            output = output.transpose(1, 2).contiguous()            # (B, T, H, D)
+            return output, None
+
         if key_padding_mask is None:
             q, kv = rearrange(q, 'b s ... -> (b s) ...'), rearrange(kv, 'b s ... -> (b s) ...')
-            max_sq, max_sk = seqlen_q, seqlen_k 
+            max_sq, max_sk = seqlen_q, seqlen_k
             cu_seqlens_q = torch.arange(0, (batch_size + 1) * seqlen_q, step=seqlen_q, dtype=torch.int32,
                                     device=q.device)
             cu_seqlens_k = torch.arange(0, (batch_size + 1) * seqlen_k, step=seqlen_k, dtype=torch.int32,
-                                    device=kv.device)                    
+                                    device=kv.device)
             output = flash_attn_unpadded_kvpacked_func(
                 q, kv, cu_seqlens_q, cu_seqlens_k, max_sq, max_sk,
                 self.dropout_p if self.training else 0.0,
@@ -300,4 +348,3 @@ def gen_sineembed_for_position(pos_tensor, hidden_dim=256):
     pos_y = torch.stack((pos_y[..., 0::2].sin(), pos_y[..., 1::2].cos()), dim=-1).flatten(-2)
     pos = torch.cat((pos_y, pos_x), dim=-1)
     return pos
-

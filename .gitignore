@@ -4,6 +4,8 @@
 *.whl
 *.swp
 
+.claude/**
+
 data/
 ckpt/
 work_dirs*/
@@ -19,3 +21,4 @@ __pycache__/
 
 job_scripts/
 temp_ops/
+.claude/worktrees/youthful-mahavira-121c22
