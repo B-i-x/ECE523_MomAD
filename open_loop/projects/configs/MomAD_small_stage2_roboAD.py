@@ -31,7 +31,7 @@ load_from = None
 # resume_from = "work_dirs/sparsedrive_small_stage2_roboAD/iter_5860.pth"
 resume_from = None
 workflow = [("train", 1)]
-fp16 = dict(loss_scale=32.0)
+fp16 = dict(loss_scale='dynamic')
 input_shape = (704, 256)
 
 
