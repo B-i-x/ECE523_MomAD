@@ -1,6 +1,8 @@
 from typing import List, Optional, Tuple, Union
 import warnings
 import copy
+import json
+import os
 
 import numpy as np
 import cv2
@@ -640,6 +642,25 @@ class MotionPlanningHeadroboAD(BaseModule):
             validity[:, 2] = 0
         weights = weights * validity
         weights = weights / weights.sum(dim=-1, keepdim=True).clamp_min(1e-6)
+
+        if not self.training:
+            log_path = os.environ.get('SELECTOR_LOG_PATH', './selector_weights.jsonl')
+            try:
+                tokens = [m.get('token', '') for m in metas.get('img_metas', [])]
+                cmd_tensor = metas.get('gt_ego_fut_cmd', None)
+                cmd_idx = cmd_tensor.argmax(dim=-1).cpu().tolist() if cmd_tensor is not None else [None] * weights.shape[0]
+                with open(log_path, 'a') as f:
+                    for i in range(weights.shape[0]):
+                        f.write(json.dumps({
+                            'token': tokens[i] if i < len(tokens) else '',
+                            'cmd': cmd_idx[i] if i < len(cmd_idx) else None,
+                            'weights': [round(float(x), 4) for x in weights[i].detach().cpu().tolist()],
+                            'argmax': int(weights[i].argmax().item()),
+                            'last_valid': bool(self.last_valid),
+                            'last2_valid': bool(self.last2_valid),
+                        }) + '\n')
+            except Exception:
+                pass
 
         w = weights.view(-1, 3, 1, 1, 1)
         enhanced_plan_query = w[:, 0] * branch0 + w[:, 1] * branch1 + w[:, 2] * branch2
