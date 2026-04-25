@@ -617,14 +617,11 @@ class MotionPlanningHeadroboAD(BaseModule):
         # === 3-branch soft-gated fusion (replaces in-forward NextTokenPredictor) ===
         mixer = self.long_horizon_query_mixer
         branch0 = enhanced_plan_query
-        if self.last_valid:
-            branch1 = mixer(self.last_plan_query, self.last_planning_classification, enhanced_plan_query)
-        else:
-            branch1 = enhanced_plan_query
-        if self.last_valid and self.last2_valid:
-            branch2 = mixer(self.last2_plan_query, self.last2_planning_classification, branch1)
-        else:
-            branch2 = enhanced_plan_query
+        # Always invoke the mixer so its parameters appear in the autograd graph
+        # (DDP requirement); the validity mask below zeros out branches whose
+        # history is missing, so contributions are still semantically gated.
+        branch1 = mixer(self.last_plan_query, self.last_planning_classification, enhanced_plan_query)
+        branch2 = mixer(self.last2_plan_query, self.last2_planning_classification, branch1)
 
         # `batch_size` imported at module level may not match runtime batch
         # (sibling-config import resolves to 1 on this branch); existing buffers
