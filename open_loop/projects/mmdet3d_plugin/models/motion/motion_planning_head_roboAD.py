@@ -69,10 +69,13 @@ class MotionPlanningHeadroboAD(BaseModule):
         planning_decoder=None,
         num_det=50,
         num_map=10,
-        use_rescore= True
-        
+        use_rescore= True,
+        selector_entropy_weight=0.05,
+
     ):
         super(MotionPlanningHeadroboAD, self).__init__()
+        self.selector_entropy_weight = selector_entropy_weight
+        self._last_selector_weights = None
         self.fut_ts = fut_ts
         self.fut_mode = fut_mode
         self.ego_fut_ts = ego_fut_ts
@@ -642,6 +645,8 @@ class MotionPlanningHeadroboAD(BaseModule):
             validity[:, 2] = 0
         weights = weights * validity
         weights = weights / weights.sum(dim=-1, keepdim=True).clamp_min(1e-6)
+        # Stash post-renorm weights so loss() can apply a commitment regularizer.
+        self._last_selector_weights = weights
 
         if not self.training:
             log_path = os.environ.get('SELECTOR_LOG_PATH', './selector_weights.jsonl')
@@ -721,6 +726,12 @@ class MotionPlanningHeadroboAD(BaseModule):
         loss.update(planning_loss)
         planning_loss_refined = self.loss_planning_refined(planning_model_outs, data)
         loss.update(planning_loss_refined)
+        # Selector commitment regularizer: penalize entropy of the gate so it
+        # commits to a branch instead of hovering near uniform.
+        w = self._last_selector_weights
+        if w is not None and self.selector_entropy_weight > 0:
+            entropy = -(w * w.clamp_min(1e-6).log()).sum(dim=-1).mean()
+            loss['loss_selector_entropy'] = self.selector_entropy_weight * entropy
         return loss
 
     @force_fp32(apply_to=("model_outs"))
