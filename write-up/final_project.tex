@@ -37,7 +37,7 @@
 \begin{abstract}
 End-to-end autonomous driving frameworks that incorporate temporal history for trajectory planning face a fundamental tension: historical context improves long-horizon accuracy but can introduce causal confusion when stale observations dominate decision-making.
 MomAD addresses this through momentum planning with a fixed-depth history window, yet its ablation studies reveal a \emph{history paradox} where increasing history length does not monotonically improve performance.
-We propose \textbf{MemAD}, which augments MomAD's Momentum Planning Interactor (MPI) with an \emph{Adaptive History Selector} (AHS), a lightweight MLP-based gating network that dynamically selects among three history depths ($d \in \{0, 1, 2\}$) conditioned on ego-vehicle kinematics, the current planning query, and the driving command.
+We propose \textbf{MemAD}, which augments MomAD's Momentum Planning Interactor (MPI) with an Adaptive History Selector (AHS), a lightweight MLP-based gating network that dynamically selects among three history depths ($d \in \{0, 1, 2\}$) conditioned on ego-vehicle kinematics, the current planning query, and the driving command.
 We introduce warm-start initialization and entropy regularization to stabilize training.
 Evaluated on the nuScenes mini split, MemAD reduces average L2 displacement error by 7.6\% and collision rate by 50\% relative to the reproduced MomAD baseline, while revealing interpretable gate routing patterns that align with a bimodal turn-behavior hypothesis.
 \end{abstract}
@@ -52,13 +52,13 @@ End-to-end (E2E) autonomous driving pipelines map raw sensor inputs directly to 
 A recurring design choice in these systems is whether and how to condition the planner on historical predictions.
 Temporal context can improve long-horizon trajectory stability, but it also risks \emph{causal confusion}~\cite{dehaan2019causal}: the planner may latch onto past velocity as a spurious shortcut rather than reacting to current visual evidence such as traffic signals.
 
-MomAD~\cite{li2025momad} tackles this problem with \emph{momentum planning}, introducing Topological Trajectory Matching (TTM) and a Momentum Planning Interactor (MPI) that fuses the current planning query with one previous frame's query and score via a Long-Horizon Query Mixer.
-While effective, the MPI uses a \emph{fixed} history depth.
-The MomAD ablation study on Turning-nuScenes reveals a \emph{history paradox}: using $t{=}2$ frames of history yields the best results, while $t{=}3$ degrades performance below $t{=}2$, indicating that the optimal history depth is not constant across scenarios.
+MomAD~\cite{li2025momad} tackles this problem with momentum planning, introducing Topological Trajectory Matching (TTM) and a Momentum Planning Interactor (MPI) that fuses the current planning query with one previous frame's query and score via a Long-Horizon Query Mixer.
+While effective, the MPI uses a fixed history depth.
+The MomAD ablation study on Turning-nuScenes reveals a history paradox: using $t{=}2$ frames of history yields the best results, while $t{=}3$ degrades performance below $t{=}2$, indicating that the optimal history depth is not constant across scenarios.
 
 We hypothesize that the optimal amount of temporal context depends on the current driving scenario.
 During steady highway cruising, historical momentum provides useful inertia; during sharp turns or abrupt stops, stale history may actively mislead the planner.
-To test this, we propose \textbf{MemAD}, which inserts an \emph{Adaptive History Selector} (AHS) upstream of the Long-Horizon Query Mixer.
+To test this, we propose \textbf{MemAD}, which inserts an Adaptive History Selector (AHS) upstream of the Long-Horizon Query Mixer.
 The AHS is a small gating MLP that observes ego-vehicle kinematics, the current plan query, and the navigation command to produce a soft 3-way distribution over history depths $d \in \{0, 1, 2\}$.
 
 Our contributions are:
@@ -88,7 +88,7 @@ However, MPI applies history at a fixed depth, treating all driving scenarios id
 
 \textbf{Adaptive gating.}
 Mixture-of-experts architectures use learned gating networks to route inputs to specialized sub-networks.
-Our AHS applies a similar principle: rather than routing to different expert networks, it routes to different \emph{temporal depths}, selecting how much historical context to use for each planning step.
+Our AHS applies a similar principle: rather than routing to different expert networks, it routes to different temporal depths, selecting how much historical context to use for each planning step.
 
 % ============================================================
 % 3  METHOD
@@ -261,7 +261,7 @@ To verify that the AHS learns a meaningful routing policy rather than collapsing
 The gate selects branch~1 ($t{-}1$ history) 88.3\% of the time, consistent with MomAD's finding that single-frame history is optimal on average.
 However, it routes 4.1\% of samples to branch~0 (no history) and 7.6\% to branch~2 (two-frame history), indicating scenario-dependent adaptation.
 
-Stratifying by navigation command reveals a \emph{bimodal turn policy}: during right turns, the gate selects no-history (branch~0) 9.8\% of the time, nearly 5$\times$ the rate during straight driving (2.2\%).
+Stratifying by navigation command reveals a bimodal turn policy: during right turns, the gate selects no-history (branch~0) 9.8\% of the time, nearly 5$\times$ the rate during straight driving (2.2\%).
 We hypothesize this reflects the distinction between sharp and gradual turns: sharp direction changes benefit from discarding potentially contradictory historical trajectories, while gradual maneuvers leverage temporal continuity.
 
 \begin{table}[t]
