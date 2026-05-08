@@ -1,6 +1,6 @@
 # ================ base config ===================
 # version = 'mini'
-version = 'trainval'
+version = 'mini'
 length = {'trainval': 28130, 'mini': 323}
 
 plugin = True
@@ -9,12 +9,13 @@ dist_params = dict(backend="nccl")
 log_level = "INFO"
 work_dir = None
 
-total_batch_size = 48
-num_gpus = 8
+total_batch_size = 1
+num_gpus = 1
 batch_size = total_batch_size // num_gpus
 num_iters_per_epoch = int(length[version] // (num_gpus * batch_size))
-num_epochs = 20
-checkpoint_epoch_interval = 20
+# Fine-tune from pretrained MomAD checkpoint with the adaptive history selector.
+num_epochs = 3
+checkpoint_epoch_interval = 1
 
 checkpoint_config = dict(
     interval=num_iters_per_epoch * checkpoint_epoch_interval
@@ -30,7 +31,7 @@ load_from = None
 # resume_from = "work_dirs/sparsedrive_small_stage2_roboAD/iter_5860.pth"
 resume_from = None
 workflow = [("train", 1)]
-fp16 = dict(loss_scale=32.0)
+fp16 = dict(loss_scale='dynamic')
 input_shape = (704, 256)
 
 
@@ -508,6 +509,7 @@ model = dict(
             ),
             num_det=50,
             num_map=10,
+            selector_entropy_weight=0.05,
         ),
     ),
 )
@@ -690,11 +692,13 @@ data = dict(
 # ================== training ========================
 optimizer = dict(
     type="AdamW",
-    lr=3e-4,
+    lr=2e-5,
     weight_decay=0.001,
     paramwise_cfg=dict(
         custom_keys={
             "img_backbone": dict(lr_mult=0.1),
+            "adaptive_history_selector": dict(lr_mult=20.0),
+            "long_horizon_query_mixer": dict(lr_mult=20.0),
         }
     ),
 )
@@ -702,7 +706,7 @@ optimizer_config = dict(grad_clip=dict(max_norm=25, norm_type=2))
 lr_config = dict(
     policy="CosineAnnealing",
     warmup="linear",
-    warmup_iters=500,
+    warmup_iters=50,
     warmup_ratio=1.0 / 3,
     min_lr_ratio=1e-3,
 )
@@ -726,5 +730,6 @@ evaluation = dict(
     eval_mode=eval_mode,
 )
 # ================== pretrained model ========================
-load_from = 'ckpt/sparsedrive_stage2.pth'
+load_from = 'ckpt/MomAD_3s.pth'
+# load_from = 'ckpt/sparsedrive_stage2.pth'
 # load_from = 'ckpt/sparsedrive_stage1.pth'
