@@ -1,11 +1,14 @@
-\documentclass[accepted]{icml2025}
+\documentclass{article}
 
-\usepackage{amsmath,amssymb}
+\usepackage{microtype}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{hyperref}
 \usepackage{xcolor}
+\usepackage{amsmath,amssymb}
+
+\usepackage[accepted]{icml2025}
 
 \icmltitlerunning{MemAD: Adaptive History Selection for Momentum Planning}
 
@@ -21,7 +24,6 @@
 
 \icmlaffiliation{ua}{Department of Electrical and Computer Engineering, University of Arizona, Tucson, AZ}
 
-\icmlcorrespondingauthor{Alex Romero}{alexromero@arizona.edu}
 
 \vskip 0.3in
 ]
@@ -34,7 +36,7 @@
 \begin{abstract}
 End-to-end autonomous driving frameworks that incorporate temporal history for trajectory planning face a fundamental tension: historical context improves long-horizon accuracy but can introduce causal confusion when stale observations dominate decision-making.
 MomAD addresses this through momentum planning with a fixed-depth history window, yet its ablation studies reveal a \emph{history paradox} where increasing history length does not monotonically improve performance.
-We propose \textbf{MemAD}, which augments MomAD's Momentum Planning Interactor (MPI) with an \emph{Adaptive History Selector} (AHS)---a lightweight MLP-based gating network that dynamically selects among three history depths ($d \in \{0, 1, 2\}$) conditioned on ego-vehicle kinematics, the current planning query, and the driving command.
+We propose \textbf{MemAD}, which augments MomAD's Momentum Planning Interactor (MPI) with an \emph{Adaptive History Selector} (AHS), a lightweight MLP-based gating network that dynamically selects among three history depths ($d \in \{0, 1, 2\}$) conditioned on ego-vehicle kinematics, the current planning query, and the driving command.
 We introduce warm-start initialization and entropy regularization to stabilize training.
 Evaluated on the nuScenes mini split, MemAD reduces average L2 displacement error by 7.6\% and collision rate by 50\% relative to the reproduced MomAD baseline, while revealing interpretable gate routing patterns that align with a bimodal turn-behavior hypothesis.
 \end{abstract}
@@ -96,7 +98,7 @@ Our AHS applies a similar principle: rather than routing to different expert net
 \subsection{Background: MomAD and MPI}
 \label{sec:background}
 
-MomAD builds on SparseDrive's multi-task architecture comprising a ResNet-50 backbone with FPN, a sparse 3D detection head, a vectorized map head, and a joint motion-planning head.
+MomAD builds on SparseDrive's multi-task architecture comprising a ResNet-50 backbone with FPN~\cite{lin2017fpn}, a sparse 3D detection head, a vectorized map head, and a joint motion-planning head.
 The motion-planning head generates $M{=}6$ trajectory modes for each of three navigation commands (left, right, straight), yielding 18 candidate trajectories at each timestep.
 
 The MPI module receives the current planning query $\mathbf{Q}_t^{p*}$ (selected by TTM), the previous frame's query $\mathbf{Q}_{t-1}^p$, and its classification score $\mathbf{S}_{t-1}^p$.
@@ -105,7 +107,7 @@ A Long-Horizon Query Mixer fuses these via:
     \hat{\mathbf{Q}}_t^{p*} = \text{LSTM}\!\Big(\mathbf{Q}_t^{p*} + \sigma(\mathbf{S}_{t-1}^p) \odot \mathbf{Q}_{t-1}^p\Big),
     \label{eq:mixer}
 \end{equation}
-where $\sigma$ denotes the sigmoid function and the LSTM (hidden dimension 128) maintains temporal coherence across modes.
+where $\sigma$ denotes the sigmoid function and the LSTM~\cite{hochreiter1997lstm} (hidden dimension 128) maintains temporal coherence across modes.
 The enriched query $\hat{\mathbf{Q}}_t^{p*}$ is then decoded into refined trajectory waypoints and ego-status predictions.
 
 \subsection{Adaptive History Selector}
@@ -258,7 +260,7 @@ To verify that the AHS learns a meaningful routing policy rather than collapsing
 The gate selects branch~1 ($t{-}1$ history) 88.3\% of the time, consistent with MomAD's finding that single-frame history is optimal on average.
 However, it routes 4.1\% of samples to branch~0 (no history) and 7.6\% to branch~2 (two-frame history), indicating scenario-dependent adaptation.
 
-Stratifying by navigation command reveals a \emph{bimodal turn policy}: during right turns, the gate selects no-history (branch~0) 9.8\% of the time---nearly 5$\times$ the rate during straight driving (2.2\%).
+Stratifying by navigation command reveals a \emph{bimodal turn policy}: during right turns, the gate selects no-history (branch~0) 9.8\% of the time, nearly 5$\times$ the rate during straight driving (2.2\%).
 We hypothesize this reflects the distinction between sharp and gradual turns: sharp direction changes benefit from discarding potentially contradictory historical trajectories, while gradual maneuvers leverage temporal continuity.
 
 \begin{table}[t]
@@ -285,7 +287,7 @@ Overall & 486 & 4.1\% & 88.3\% & 7.6\% \\
 \section{Discussion and Conclusion}
 \label{sec:conclusion}
 
-\textbf{The accuracy--consistency tradeoff.}
+\textbf{The accuracy-consistency tradeoff.}
 MemAD~2.0 improves L2 and collision rate but degrades TPC by 12.5\%.
 This tradeoff is inherent to adaptive history selection: by varying the amount of temporal context across frames, the planner's outputs become less self-consistent even as they become more accurate per-frame.
 When the gate switches from $d{=}1$ to $d{=}0$ between consecutive frames, the resulting trajectories naturally diverge because they are conditioned on different information.
