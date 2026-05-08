@@ -87,7 +87,7 @@ MomAD introduced Trajectory Prediction Consistency (TPC) as a metric for tempora
 However, MPI applies history at a fixed depth, treating all driving scenarios identically.
 
 \textbf{Adaptive gating.}
-Mixture-of-experts architectures~\cite{shazeer2017outrageously} use learned gating networks to route inputs to specialized sub-networks.
+Mixture-of-experts architectures use learned gating networks to route inputs to specialized sub-networks.
 Our AHS applies a similar principle: rather than routing to different expert networks, it routes to different \emph{temporal depths}, selecting how much historical context to use for each planning step.
 
 % ============================================================
@@ -99,7 +99,7 @@ Our AHS applies a similar principle: rather than routing to different expert net
 \subsection{Background: MomAD and MPI}
 \label{sec:background}
 
-MomAD builds on SparseDrive's multi-task architecture comprising a ResNet-50 backbone with FPN~\cite{lin2017fpn}, a sparse 3D detection head, a vectorized map head, and a joint motion-planning head.
+MomAD builds on SparseDrive's multi-task architecture comprising a ResNet-50 backbone with FPN, a sparse 3D detection head, a vectorized map head, and a joint motion-planning head.
 The motion-planning head generates $M{=}6$ trajectory modes for each of three navigation commands (left, right, straight), yielding 18 candidate trajectories at each timestep.
 
 The MPI module receives the current planning query $\mathbf{Q}_t^{p*}$ (selected by TTM), the previous frame's query $\mathbf{Q}_{t-1}^p$, and its classification score $\mathbf{S}_{t-1}^p$.
@@ -108,7 +108,7 @@ A Long-Horizon Query Mixer fuses these via:
     \hat{\mathbf{Q}}_t^{p*} = \text{LSTM}\!\Big(\mathbf{Q}_t^{p*} + \sigma(\mathbf{S}_{t-1}^p) \odot \mathbf{Q}_{t-1}^p\Big),
     \label{eq:mixer}
 \end{equation}
-where $\sigma$ denotes the sigmoid function and the LSTM~\cite{hochreiter1997lstm} (hidden dimension 128) maintains temporal coherence across modes.
+where $\sigma$ denotes the sigmoid function and the LSTM (hidden dimension 128) maintains temporal coherence across modes.
 The enriched query $\hat{\mathbf{Q}}_t^{p*}$ is then decoded into refined trajectory waypoints and ego-status predictions.
 
 \subsection{Adaptive History Selector}
@@ -164,8 +164,8 @@ Minimizing $\mathcal{L}_{\text{ent}}$ pushes the distribution toward low-entropy
 \subsection{Training Details}
 \label{sec:training}
 
-We use AdamW~\cite{loshchilov2019adamw} with a base learning rate of $2 \times 10^{-5}$ and weight decay $10^{-3}$.
-The AHS and Long-Horizon Query Mixer receive a $20\times$ learning rate multiplier ($4 \times 10^{-4}$) to allow rapid adaptation while the pretrained backbone (ResNet-50~\cite{he2016resnet}) uses a $0.1\times$ multiplier.
+We use AdamW with a base learning rate of $2 \times 10^{-5}$ and weight decay $10^{-3}$.
+The AHS and Long-Horizon Query Mixer receive a $20\times$ learning rate multiplier ($4 \times 10^{-4}$) to allow rapid adaptation while the pretrained backbone (ResNet-50) uses a $0.1\times$ multiplier.
 Gradient clipping is set to 25.0 and mixed-precision (FP16) training is used.
 We train for 3 epochs on the nuScenes mini training split (323 samples).
 
@@ -302,7 +302,7 @@ Closed-loop evaluation, which would test reactive driving behavior, was not cond
 \textbf{Future work.}
 Training on the full nuScenes dataset (28K samples) with modern GPUs would enable statistically powered evaluation.
 Investigating the bimodal turn theory with per-scenario TPC analysis could reveal whether the gate's no-history selections specifically benefit sharp turns.
-Closed-loop benchmarks such as Bench2Drive~\cite{jia2024bench2drive} would test whether adaptive history selection translates to improved reactive driving.
+Closed-loop benchmarks would test whether adaptive history selection translates to improved reactive driving.
 
 \textbf{Conclusion.}
 We presented MemAD, which addresses the history paradox in momentum-based planning through a lightweight adaptive gating mechanism.
